@@ -66,13 +66,6 @@ VkFormat SpirvFormatToVulkanFormat(spv::ImageFormat format)
 		case spv::ImageFormatRg8ui: return VK_FORMAT_R8G8_UINT;
 		case spv::ImageFormatR16ui: return VK_FORMAT_R16_UINT;
 		case spv::ImageFormatR8ui: return VK_FORMAT_R8_UINT;
-
-		case spv::ImageFormatR11fG11fB10f: return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
-		case spv::ImageFormatR8: return VK_FORMAT_R8_UNORM;
-		case spv::ImageFormatR8Snorm: return VK_FORMAT_R8_SNORM;
-		case spv::ImageFormatRgba16: return VK_FORMAT_R16G16B16A16_UNORM;
-		case spv::ImageFormatRgba16Snorm: return VK_FORMAT_R16G16B16A16_SNORM;
-
 		default:
 			UNSUPPORTED("SPIR-V ImageFormat %u", format);
 			return VK_FORMAT_UNDEFINED;
