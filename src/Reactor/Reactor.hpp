@@ -105,6 +105,13 @@ class RValue;
 template<class T>
 class Pointer;
 
+template<>
+struct CToReactor<int[4]>
+{
+	using type = Int4;
+	static Int4 cast(float[4]);
+};
+
 class Variable
 {
 	friend class Nucleus;

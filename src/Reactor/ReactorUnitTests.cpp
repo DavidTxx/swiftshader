@@ -2072,14 +2072,6 @@ struct IntrinsicTest_Float : public testing::TestWithParam<IntrinsicTestParams_F
 using float4 = float[4];
 using int4 = int[4];
 
-// TODO: Move to Reactor.hpp
-template<>
-struct rr::CToReactor<int[4]>
-{
-	using type = Int4;
-	static Int4 cast(float[4]);
-};
-
 // Value type wrapper around a <type>[4] (i.e. float4, int4)
 template<typename T>
 struct type4_value

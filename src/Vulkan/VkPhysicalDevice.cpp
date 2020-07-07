@@ -218,7 +218,7 @@ const VkPhysicalDeviceLimits &PhysicalDevice::getLimits() const
 		16,                                               // maxPerStageDescriptorSamplers
 		14,                                               // maxPerStageDescriptorUniformBuffers
 		16,                                               // maxPerStageDescriptorStorageBuffers
-		16,                                               // maxPerStageDescriptorSampledImages
+		32,                                               // maxPerStageDescriptorSampledImages
 		4,                                                // maxPerStageDescriptorStorageImages
 		4,                                                // maxPerStageDescriptorInputAttachments
 		128,                                              // maxPerStageResources
@@ -285,7 +285,7 @@ const VkPhysicalDeviceLimits &PhysicalDevice::getLimits() const
 		sampleCounts,                                     // framebufferDepthSampleCounts
 		sampleCounts,                                     // framebufferStencilSampleCounts
 		sampleCounts,                                     // framebufferNoAttachmentsSampleCounts
-		4,                                                // maxColorAttachments
+		8,                                                // maxColorAttachments
 		sampleCounts,                                     // sampledImageColorSampleCounts
 		sampleCounts,                                     // sampledImageIntegerSampleCounts
 		sampleCounts,                                     // sampledImageDepthSampleCounts
