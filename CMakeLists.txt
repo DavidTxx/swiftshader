@@ -86,6 +86,9 @@ endif()
 
 find_library(X11 X11)
 find_library(XCB xcb)
+if(SWIFTSHADER_BUILD_WSI_WAYLAND)
+    find_library(WAYLAND wayland-client)
+endif(SWIFTSHADER_BUILD_WSI_WAYLAND)
 
 ###########################################################
 # Options
@@ -112,8 +115,10 @@ option_if_not_defined(SWIFTSHADER_BUILD_EGL "Build the EGL library" TRUE)
 option_if_not_defined(SWIFTSHADER_BUILD_GLESv2 "Build the OpenGL ES 2 library" TRUE)
 option_if_not_defined(SWIFTSHADER_BUILD_GLES_CM "Build the OpenGL ES 1.1 library" TRUE)
 option_if_not_defined(SWIFTSHADER_BUILD_VULKAN "Build the Vulkan library" TRUE)
+option_if_not_defined(SWIFTSHADER_BUILD_WSI_WAYLAND "Build the Wayland WSI support" FALSE)
 option_if_not_defined(SWIFTSHADER_BUILD_PVR "Build the PowerVR examples" TRUE)
 option_if_not_defined(SWIFTSHADER_GET_PVR "Check out the PowerVR submodule" FALSE)
+option_if_not_defined(SWIFTSHADER_BUILD_ANGLE "Build angle" FALSE)
 
 option_if_not_defined(SWIFTSHADER_USE_GROUP_SOURCES "Group the source files in a folder tree for Visual Studio" TRUE)
 
@@ -147,9 +152,9 @@ set(DEFAULT_REACTOR_BACKEND "LLVM")
 set(REACTOR_BACKEND ${DEFAULT_REACTOR_BACKEND} CACHE STRING "JIT compiler back-end used by Reactor")
 set_property(CACHE REACTOR_BACKEND PROPERTY STRINGS LLVM Subzero)
 
-set(DEFAULT_SWIFTSHADER_LLVM_VERSION "7.0")
+set(DEFAULT_SWIFTSHADER_LLVM_VERSION "10.0")
 set(SWIFTSHADER_LLVM_VERSION ${DEFAULT_SWIFTSHADER_LLVM_VERSION} CACHE STRING "LLVM version to use")
-set_property(CACHE SWIFTSHADER_LLVM_VERSION PROPERTY STRINGS "7.0" "10.0")
+set_property(CACHE SWIFTSHADER_LLVM_VERSION PROPERTY STRINGS "10.0")
 
 # If defined, overrides the default optimization level of the current reactor backend.
 # Set to one of the rr::Optimization::Level enum values.
@@ -223,6 +228,9 @@ if(SWIFTSHADER_BUILD_CPPDAP)
     InitSubmodule(cppdap ${THIRD_PARTY_DIR}/cppdap)
 endif()
 
+if(SWIFTSHADER_BUILD_ANGLE)
+    InitSubmodule(angle ${THIRD_PARTY_DIR}/angle/angle)
+endif()
 
 ###########################################################
 # Convenience macros
@@ -627,6 +635,9 @@ if(WIN32)
     set(OS_LIBS odbc32 odbccp32 WS2_32 dxguid)
 elseif(LINUX)
     set(OS_LIBS dl pthread)
+    if(SWIFTSHADER_BUILD_WSI_WAYLAND)
+        list(APPEND OS_LIBS "${WAYLAND}")
+    endif(SWIFTSHADER_BUILD_WSI_WAYLAND)
 elseif(FUCHSIA)
     set(OS_LIBS zircon)
 elseif(APPLE)
@@ -707,6 +718,11 @@ if(SWIFTSHADER_BUILD_VULKAN)
         if(XCB)
             target_compile_definitions(vk_base INTERFACE "VK_USE_PLATFORM_XCB_KHR")
         endif()
+        if(SWIFTSHADER_BUILD_WSI_WAYLAND)
+            if(WAYLAND)
+                target_compile_definitions(vk_base INTERFACE "VK_USE_PLATFORM_WAYLAND_KHR")
+            endif()
+        endif(SWIFTSHADER_BUILD_WSI_WAYLAND)
     elseif(APPLE)
         target_compile_definitions(vk_base INTERFACE "VK_USE_PLATFORM_MACOS_MVK")
     elseif(FUCHSIA)
@@ -722,16 +738,31 @@ if(SWIFTSHADER_BUILD_VULKAN)
     add_subdirectory(src/Vulkan) # Add vk_swiftshader target
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND # turbo-cov is only useful for clang coverage info
-       SWIFTSHADER_LLVM_VERSION EQUAL "10.0" AND # turbo-cov does not build with earlier llvm versions
        SWIFTSHADER_EMIT_COVERAGE)
         add_subdirectory(${TESTS_DIR}/regres/cov/turbo-cov)
     endif()
 
 endif()
 
+if(SWIFTSHADER_BUILD_ANGLE)
+    add_subdirectory(${THIRD_PARTY_DIR}/angle)
+
+    # Make angle depend on vk_swiftshader so we can test SWANGLE
+    if (TARGET vk_swiftshader)
+        add_dependencies(angle vk_swiftshader)
+    endif()
+endif()
+
+
 ###########################################################
 # Sample programs and tests
 ###########################################################
+
+# TODO(b/161976310): Add support for building PowerVR on MacOS
+if(APPLE AND HAVE_PVR_SUBMODULE AND SWIFTSHADER_BUILD_PVR)
+    message(WARNING "Building PowerVR examples for SwiftShader is not yet supported on Apple platforms.")
+    set(SWIFTSHADER_BUILD_PVR FALSE)
+endif()
 
 if(HAVE_PVR_SUBMODULE AND SWIFTSHADER_BUILD_PVR)
     if(UNIX AND NOT APPLE)
@@ -850,6 +881,13 @@ if(HAVE_PVR_SUBMODULE AND SWIFTSHADER_BUILD_PVR)
     foreach(pvr_target ${PVR_TARGET_OTHER} ${PVR_VULKAN_TARGET_OTHER} ${PVR_GLES_TARGET_OTHER})
         set_target_properties(${pvr_target} PROPERTIES FOLDER Samples/PowerVR-Build)
     endforeach()
+
+    # Make angle target depend on PowerVR GL examples
+    if (TARGET angle)
+        foreach(pvr_target ${PVR_GLES_TARGET})
+            add_dependencies(angle ${pvr_target})
+        endforeach()
+    endif()
 endif()
 
 if(SWIFTSHADER_BUILD_TESTS)

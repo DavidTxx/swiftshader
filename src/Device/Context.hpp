@@ -83,10 +83,9 @@ public:
 	bool depthBufferActive() const;
 	bool stencilActive() const;
 
-	bool allTargetsColorClamp() const;
-
 	void setBlendState(int index, BlendState state);
 	BlendState getBlendState(int index) const;
+	bool isColorClamped(int index) const;
 
 	VkPrimitiveTopology topology;
 	VkProvokingVertexModeEXT provokingVertexMode;
@@ -103,10 +102,13 @@ public:
 
 	float depthBias;
 	float slopeDepthBias;
+	float depthBiasClamp;
+	bool depthRangeUnrestricted;
 
 	VkFormat renderTargetInternalFormat(int index) const;
 	int colorWriteActive(int index) const;
 
+	vk::DescriptorSet::Array descriptorSetObjects = {};
 	vk::DescriptorSet::Bindings descriptorSets = {};
 	vk::DescriptorSet::DynamicOffsets descriptorDynamicOffsets = {};
 	Stream input[MAX_INTERFACE_COMPONENTS / 4];

@@ -722,6 +722,12 @@ private:
 	template<typename T>
 	T *get(SpirvID<T> id) const;
 
+	// getOrNull() returns the debug object with the given id if
+	// the object exists and is of type (or derive from type) T.
+	// Otherwise, returns nullptr.
+	template<typename T>
+	T *getOrNull(SpirvID<T> id) const;
+
 	// use get() and add() to access this
 	std::unordered_map<debug::Object::ID, std::unique_ptr<debug::Object>> objects;
 
@@ -1195,7 +1201,12 @@ void SpirvShader::Impl::Debugger::process(const SpirvShader *shader, const InsnI
 		case OpenCLDebugInfo100DebugTypeFunction:
 			defineOrEmit(insn, pass, [&](debug::FunctionType *type) {
 				type->flags = insn.word(5);
-				type->returnTy = get(debug::Type::ID(insn.word(6)));
+				type->returnTy = getOrNull(debug::Type::ID(insn.word(6)));
+
+				// 'Return Type' operand must be a debug type or OpTypeVoid. See
+				// https://www.khronos.org/registry/spir-v/specs/unified1/OpenCL.DebugInfo.100.html#DebugTypeFunction
+				ASSERT_MSG(type->returnTy != nullptr || shader->getType(insn.word(6)).opcode() == spv::Op::OpTypeVoid, "Invalid return type of DebugTypeFunction: %d", insn.word(6));
+
 				for(uint32_t i = 7; i < insn.wordCount(); i++)
 				{
 					type->paramTys.push_back(get(debug::Type::ID(insn.word(i))));
@@ -1264,11 +1275,15 @@ void SpirvShader::Impl::Debugger::process(const SpirvShader *shader, const InsnI
 				var->column = insn.word(9);
 				var->parent = get(debug::Scope::ID(insn.word(10)));
 				var->linkage = shader->getString(insn.word(11));
-				var->variable = insn.word(12);
+				var->variable = isNone(insn.word(12)) ? 0 : insn.word(12);
 				var->flags = insn.word(13);
 				// static member declaration: word(14)
 
-				exposeVariable(shader, var->name.c_str(), &debug::Scope::Global, var->type, var->variable, state);
+				// TODO(b/148401179): Instead of simply hiding variables that have been stripped by optimizations, show them in the debugger as `<optimized-away>`
+				if(var->variable != 0)
+				{
+					exposeVariable(shader, var->name.c_str(), &debug::Scope::Global, var->type, var->variable, state);
+				}
 			});
 			break;
 		case OpenCLDebugInfo100DebugFunction:
@@ -1390,6 +1405,15 @@ void SpirvShader::Impl::Debugger::process(const SpirvShader *shader, const InsnI
 				}
 			});
 			break;
+		case OpenCLDebugInfo100DebugOperation:
+			defineOrEmit(insn, pass, [&](debug::Operation *operation) {
+				operation->opcode = insn.word(5);
+				for(uint32_t i = 6; i < insn.wordCount(); i++)
+				{
+					operation->operands.push_back(insn.word(i));
+				}
+			});
+			break;
 
 		case OpenCLDebugInfo100DebugTypePointer:
 		case OpenCLDebugInfo100DebugTypeQualifier:
@@ -1402,7 +1426,6 @@ void SpirvShader::Impl::Debugger::process(const SpirvShader *shader, const InsnI
 		case OpenCLDebugInfo100DebugFunctionDeclaration:
 		case OpenCLDebugInfo100DebugLexicalBlockDiscriminator:
 		case OpenCLDebugInfo100DebugInlinedVariable:
-		case OpenCLDebugInfo100DebugOperation:
 		case OpenCLDebugInfo100DebugMacroDef:
 		case OpenCLDebugInfo100DebugMacroUndef:
 		case OpenCLDebugInfo100DebugImportedEntity:
@@ -1465,6 +1488,17 @@ T *SpirvShader::Impl::Debugger::get(SpirvID<T> id) const
 {
 	auto it = objects.find(debug::Object::ID(id.value()));
 	ASSERT_MSG(it != objects.end(), "Unknown debug object %d", id.value());
+	auto ptr = debug::cast<T>(it->second.get());
+	ASSERT_MSG(ptr, "Debug object %d is not of the correct type. Got: %s, want: %s",
+	           id.value(), cstr(it->second->kind), cstr(T::KIND));
+	return ptr;
+}
+
+template<typename T>
+T *SpirvShader::Impl::Debugger::getOrNull(SpirvID<T> id) const
+{
+	auto it = objects.find(debug::Object::ID(id.value()));
+	if(it == objects.end()) { return nullptr; }  // Not found.
 	auto ptr = debug::cast<T>(it->second.get());
 	ASSERT_MSG(ptr, "Debug object %d is not of the correct type. Got: %s, want: %s",
 	           id.value(), cstr(it->second->kind), cstr(T::KIND));
